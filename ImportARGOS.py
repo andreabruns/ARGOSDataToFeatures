@@ -13,21 +13,22 @@
 # Import modules
 import sys, os, arcpy
 
-# Set input variables (hard-wired)
-inputFile = 'V:/ARGOSTracking/Data/ARGOSData/1997dg.txt'
-
-# Set coordinate sys
-outputSR = arcpy.SpatialReference(54002)
-outputFC = "V:/ARGOSTracking/Scratch/ARGOStrack.shp"
-
 # allow file overwrite
 arcpy.env.overwriteOutput = True
 
-## Prepare a new feature class to which we'll add tracking points
-# Create an empty feature class; requires the path and name as searate parameters
-outPath,outName = os.path.split(outputFC)
-arcpy.CreateFeatureclass_management(outPath, outName, "POINT","","",outputSR)
+# Set input variables (hard-wired)
+inputFile = 'V:/ARGOSTracking/Data/ARGOSData/1997dg.txt'
+outputSR = arcpy.SpatialReference(54002)
+outputFC = "V:/ARGOSTracking/Scratch/ARGOStrack.shp"
 
+## Prepare a new feature class to which we'll add tracking points
+outPath,outName = os.path.split(outputFC)
+arcpy.CreateFeatureclass_management(outPath, outName, "POINT","","","",outputSR)
+
+# Add TagID, LC, IQ, and Date fields to the output feature class
+arcpy.management.AddField(outputFC,"TagID","LONG")
+arcpy.management.AddField(outputFC,"LC","TEXT")
+arcpy.management.AddField(outputFC,"Date","DATE")
 
 #%% Construct a while loop to iterate through all lines in the datafile
 # Open the ARGOS data file for reading
@@ -47,9 +48,6 @@ while lineString:
         
         # Extract attributes from the datum header line
         tagID = lineData[0]
-        obsDate = lineData[3]
-        obsTime = lineData[4]
-        obsLC = lineData[7]
         
         # Extract location info from the next line
         line2String = inputFileObj.readline()
@@ -57,12 +55,38 @@ while lineString:
         # Parse the line into a list
         line2Data = line2String.split()
         
-        # Extract the ate we need to variables
+        # Extract the data we need to variables
         obsLat = line2Data[2]
         obsLon = line2Data[5]
         
+        # Extract date, time, and LC vars
+        obsDate = lineData[3]
+        obsTime = lineData[4]
+        obsLC = lineData[7]
+        
         # Print results to see how we're doing
-        print(tagID, "Date:"+obsDate, "Time:"+obsTime, "LC:"+obsLC, "Lat:"+obsLat,"Long:"+obsLon)
+        # print(tagID, "Date:"+obsDate, "Time:"+obsTime, "LC:"+obsLC, "Lat:"+obsLat,"Long:"+obsLon)
+        
+        # Try t convert coordinates to point object
+        try:
+            # Convert raw coordinate strings to numbers
+            if obsLat[-1] == 'N':
+                obsLat = float(obsLat[:-1])
+            else:
+                obsLat = float(obsLat[:-1]) * -1
+            if obsLon[-1] == 'E':
+                obsLon = float(obsLon[:-1])
+            else:
+                obsLon = float(obsLon[:-1]) * -1
+            
+            # Construct a point object from the feature class
+            obsPoint = arcpy.Point()
+            obsPoint.X = obsLon
+            obsPoint.Y = obsLat
+        
+        # handle any error
+        except Exception as e:
+            print(f"Error adding record {tagID} to the output: {e}")
         
     # Move to the next line so the while loop progresses
     lineString = inputFileObj.readline()
